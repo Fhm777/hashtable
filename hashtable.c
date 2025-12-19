@@ -55,7 +55,12 @@ void resize_hash_table(hash_table* ht, size_t capacity)
     ht->items = new_items;
 }
 
-#define hash_init() (hash_table){0}
+#define hash_init(ht)                           \
+    do {                                        \
+        (ht)->items = NULL;                     \
+        (ht)->count = 0;                        \
+        (ht)->capacity = 0;                     \
+    } while(0)
 
 void hash_set(hash_table* ht, char* key, uint32_t value)
 {
