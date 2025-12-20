@@ -3,32 +3,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
+#include "hashtable.h"
 
 #define internal static
 #define THRESHOLD(capacity) ((capacity*3)/4)
-
-typedef struct {
-    char* data;
-    uint64_t hash;
-} string_obj;
-
-typedef enum {
-    ENTRY_OCCUPIED,
-    ENTRY_EMPTY,
-    ENTRY_DELETED
-} entry_status;
-
-typedef struct {
-    string_obj key;
-    uint32_t value;
-    entry_status status;
-} entry;
-
-typedef struct {
-    entry* items;
-    size_t count;
-    size_t capacity;
-} hash_table;
 
 internal
 uint64_t fnv1a(uint8_t* buffer, size_t buffer_size)
@@ -42,13 +20,6 @@ uint64_t fnv1a(uint8_t* buffer, size_t buffer_size)
 
     return hash;
 }
-
-#define hash_init(ht)                           \
-    do {                                        \
-        (ht)->items = NULL;                     \
-        (ht)->count = 0;                        \
-        (ht)->capacity = 0;                     \
-    } while(0)
 
 internal
 void resize_hash_table(hash_table* ht, size_t capacity)
@@ -72,7 +43,8 @@ void resize_hash_table(hash_table* ht, size_t capacity)
 }
 
 internal
-entry* hash_find_entry(uint64_t hash, entry* entries, size_t capacity)
+entry* hash_find_entry(char* key, uint64_t hash,
+                       entry* entries, size_t capacity)
 {
     size_t index = hash % capacity;
     entry* last_deleted_entry = NULL;
@@ -80,7 +52,15 @@ entry* hash_find_entry(uint64_t hash, entry* entries, size_t capacity)
     for (size_t i=0; i<capacity; i++) {
         entry* curr_entry = &entries[index];
         if (curr_entry->status == ENTRY_OCCUPIED
-            && curr_entry->key.hash == hash) return curr_entry;
+            && curr_entry->key.hash == hash) {
+            size_t j = 0;
+            for (;
+                 key[j]
+                     && key[j] == curr_entry->key.data[j];
+                 j++);
+            if (key[j] == curr_entry->key.data[j])
+                return curr_entry;
+        }
         else if (curr_entry->status == ENTRY_EMPTY) return curr_entry;
         else if (curr_entry->status == ENTRY_DELETED) last_deleted_entry = curr_entry;
         index = (index+1)%capacity;
@@ -101,7 +81,7 @@ void hash_set(hash_table* ht, char* key, uint32_t value)
     for (; key[key_len] != '\0'; key_len++);
 
     uint64_t hash  = fnv1a((uint8_t *)key, key_len);
-    entry* ht_entry = hash_find_entry(hash, ht->items, ht->capacity);
+    entry* ht_entry = hash_find_entry(key, hash, ht->items, ht->capacity);
 
     assert(ht_entry != NULL && "hash_find_entry must not return null");
 
@@ -110,8 +90,9 @@ void hash_set(hash_table* ht, char* key, uint32_t value)
     }
     else {
         char* data = (char *)malloc(sizeof(char)*(key_len+1));
-        for (size_t i=0; i<=key_len; i++)
+        for (size_t i=0; i<key_len; i++)
             data[i] = key[i];
+        data[key_len] = '\0';
 
         ht_entry->key = (string_obj){
             .data = data,
@@ -130,7 +111,7 @@ bool hash_get(hash_table* ht, char* key, uint32_t* value)
     size_t key_len = 0;
     for (; key[key_len] != '\0'; key_len++);
     uint64_t hash = fnv1a((uint8_t *)key, key_len);
-    entry* ht_entry = hash_find_entry(hash, ht->items, ht->capacity);
+    entry* ht_entry = hash_find_entry(key, hash, ht->items, ht->capacity);
 
     assert(ht_entry != NULL && "hash_find_entry must not return null");
 
@@ -145,7 +126,7 @@ bool hash_delete(hash_table* ht, char* key)
     size_t key_len = 0;
     for (; key[key_len] != '\0'; key_len++);
     uint64_t hash = fnv1a((uint8_t *)key, key_len);
-    entry* ht_entry = hash_find_entry(hash, ht->items, ht->capacity);
+    entry* ht_entry = hash_find_entry(key, hash, ht->items, ht->capacity);
 
     assert(ht_entry != NULL && "hash_find_entry must not return null");
 
@@ -166,9 +147,4 @@ void hash_free(hash_table* ht)
     ht->items = NULL;
     ht->count = 0;
     ht->capacity = 0;
-}
-
-int main()
-{
-    return 0;
 }
