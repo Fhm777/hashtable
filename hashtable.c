@@ -108,6 +108,9 @@ void hash_set(hash_table* ht, char* key, uint32_t value)
 
 bool hash_get(hash_table* ht, char* key, uint32_t* value)
 {
+    if (ht->capacity == 0)
+        return false;
+
     size_t key_len = 0;
     for (; key[key_len] != '\0'; key_len++);
     uint64_t hash = fnv1a((uint8_t *)key, key_len);
